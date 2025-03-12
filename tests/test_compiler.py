@@ -48,6 +48,14 @@ class ModuleTest(TestCase):
         m.connect('sqlite:///./tests/data/fixtures.sqlite3')
         self.assertEqual(m._dialect.paramstyle, 'qmark')
 
+    def test_add_str_queries(self):
+        sql = """
+        -- :name user_for_id :one
+        select * from users where user_id = :user_id
+        """
+        m = compiler.Module(sqlstr=sql)
+        self.assertIsInstance(m.user_for_id, statement.Statement)
+
     def test_add_queries(self):
         m = compiler.Module('tests/sql/mod1')
         m.add_queries('tests/sql/mod2')
