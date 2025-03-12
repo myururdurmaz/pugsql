@@ -24,7 +24,7 @@ class Module(object):
     sqlpaths = None
     engine = None
 
-    def __init__(self, sqlpath, encoding=None):
+    def __init__(self, sqlpath, sqlstr=None, encoding=None):
         """
         Loads functions found in the *sql files specified by `sqlpath` into
         properties on this object. An `encoding` for the files can optionally
@@ -37,7 +37,10 @@ class Module(object):
         self._sessionmaker = None
         self._locals = threading.local()
 
-        self.add_queries(sqlpath, encoding=encoding)
+        if sqlpath:
+            self.add_queries(sqlpath, encoding=encoding)
+        if sqlstr:
+            self.add_query_as_str(sqlstr)
 
     def add_queries(self, *paths, encoding=None):
         """
@@ -57,29 +60,31 @@ class Module(object):
         for sqlfile in sorted(glob(os.path.join(sqlpath, '*sql'))):
             with open(sqlfile, 'r', encoding=encoding) as f:
                 pugsql = f.read()
+                self.add_query_as_str(pugsql)
 
-            # handle multiple statements per file
-            statements = re.split(r'\n+(?=--+\s*:name)', pugsql)
-            for statement in statements:
-                s = parser.parse(statement, ctx=context.Context(sqlfile))
+    def add_query_as_str(self, pugsql, sqlfile=None):
+        # handle multiple statements per file
+        statements = re.split(r'\n+(?=--+\s*:name)', pugsql)
+        for statement in statements:
+            s = parser.parse(statement, ctx=context.Context(sqlfile))
 
-                if hasattr(self, s.name):
-                    if s.name not in self._statements:
-                        raise ValueError(
-                            'Error loading %s - the function name "%s" is '
-                            'reserved. Please choose another name.' % (
-                                sqlfile, s.name))
+            if hasattr(self, s.name):
+                if s.name not in self._statements:
                     raise ValueError(
-                        'Error loading %s - a SQL function named %s was '
-                        'already defined in %s.' % (
-                            sqlfile,
-                            s.name,
-                            self._statements[s.name].filename))
+                        'Error loading %s - the function name "%s" is '
+                        'reserved. Please choose another name.' % (
+                            sqlfile, s.name))
+                raise ValueError(
+                    'Error loading %s - a SQL function named %s was '
+                    'already defined in %s.' % (
+                        sqlfile,
+                        s.name,
+                        self._statements[s.name].filename))
 
-                s.set_module(self)
+            s.set_module(self)
 
-                setattr(self, s.name, s)
-                self._statements[s.name] = s
+            setattr(self, s.name, s)
+            self._statements[s.name] = s
 
     @contextmanager
     def transaction(self):
